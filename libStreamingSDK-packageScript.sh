@@ -31,17 +31,17 @@ NE_BUILDID=${dateToday}.`git rev-list HEAD | wc -l | awk '{print $1}'`
 #xcode use number only
 #NE_OPTION_MACRO="$GCC_PREPROCESSOR_DEFINITIONS NE_BUILDID=${NE_BUILDID} NE_VERSIONID=${version}"
 #test: cat LeCloudStreaming/utils/LeCApplicationContext.m | sed -n -e s/"\(#define NE_BUILDID @\"\).*$"/"\12.0.1\""/gp
-sed -i "" s/"\(#define NE_BUILDID @\"\).*$"/"\1${NE_BUILDID}\""/g LeCloudStreaming/utils/LeCApplicationContext.m
-sed -i "" s/"\(#define NE_VERSIONID @\"\).*$"/"\1${version}\""/g LeCloudStreaming/utils/LeCApplicationContext.m
+sed -i "" s/"\(#define NE_BUILDID @\"\).*$"/"\1${NE_BUILDID}\""/g LeCloudStreaming/utils/LeCApplicationContext.h
+sed -i "" s/"\(#define NE_VERSIONID @\"\).*$"/"\1${version}\""/g LeCloudStreaming/utils/LeCApplicationContext.h
 
 
-echo "******* 切换到xcode7.3，SDK9.3环境下编译 ******"
+echo "******* 切换到xcode8，SDK10.0环境下编译 ******"
 #xcodebuild -showsdks
 #sudo xcode-select -switch /Applications/Xcode.app/Contents/Developer/
 
 echo "*************************************"
 echo ">>>>>> 真机架构构建 "
-xcodebuild -scheme LeCloudStreaming -configuration Release clean build ARCHS='armv7 armv7s arm64' -sdk iphoneos9.3 GCC_PREPROCESSOR_DEFINITIONS="${NE_OPTION_MACRO}"
+xcodebuild -scheme LeCloudStreaming -configuration Release clean build ARCHS='armv7 armv7s arm64' -sdk iphoneos10.0 GCC_PREPROCESSOR_DEFINITIONS="${NE_OPTION_MACRO}"
 iphoneLibPath="${buildDir}/${libName}_armv7_${version}.a"
 cp ./DerivedData/LeCloudStreamingUI/Build/Products/Release-iphoneos/libLeCloudStreaming.a "${iphoneLibPath}"
 echo "****LibDir=$iphoneLibPath ******"
@@ -49,7 +49,7 @@ lipo -info "${iphoneLibPath}"
 
 echo "*************************************"
 echo ">>>>>> 模拟器架构构建 "
-xcodebuild -scheme LeCloudStreaming -configuration Release clean build ARCHS='x86_64 i386' -sdk iphonesimulator9.3 PLATFORM_NAME=iphonesimulator  GCC_PREPROCESSOR_DEFINITIONS="${NE_OPTION_MACRO}"
+xcodebuild -scheme LeCloudStreaming -configuration Release clean build ARCHS='x86_64 i386' -sdk iphonesimulator10.0 PLATFORM_NAME=iphonesimulator  GCC_PREPROCESSOR_DEFINITIONS="${NE_OPTION_MACRO}"
 simulatorLibPath="${buildDir}/${libName}_x86_64_${version}.a"
 cp ./DerivedData/LeCloudStreamingUI/Build/Products/Release-iphonesimulator/libLeCloudStreaming.a "${simulatorLibPath}"
 echo "****LibDir=$simulatorLibPath ******"
@@ -68,7 +68,7 @@ lipo -detailed_info "${allArchLibPath}"
         
 echo "*************************************"
 echo ">>>>>> LCStreamingBundle building"
-xcodebuild -scheme LCStreamingBundle -configuration Release -sdk iphoneos9.3
+xcodebuild -scheme LCStreamingBundle -configuration Release -sdk iphoneos10.0
 bundlePath="./DerivedData/LeCloudStreamingUI/Build/Products/Release-iphoneos/LCStreamingBundle.bundle"
 echo "****bundlePath=$bundlePath ******"
 
@@ -92,7 +92,7 @@ mkdir  ./${outputDirName}
 xcodebuild -project ../PushStreamDemo/PushStreamDemo.xcodeproj -target PushStreamDemo CODE_SIGN_IDENTITY="iPhone Distribution: Leshi Co., Ltd" PROVISIONING_PROFILE=fabd97d8-2ea0-4398-b5cb-61c1c5a96e3e
 xcrun -sdk iphoneos PackageApplication \
         ../PushStreamDemo/build/Release-iphoneos/PushStreamDemo.app \
-         -o `pwd`/${outputDirName}/PushStreamDemo.ipa
+        -o `pwd`/${outputDirName}/PushStreamDemo${NE_BUILDID}.ipa
 rm -rf ../PushStreamDemo/build
 
 
