@@ -12,7 +12,7 @@ echo 'using new version:${version}'
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${version}" HandyPushStream/Info.plist
 fi
 
-xcodebuild -workspace HandyPushStream.xcworkspace -scheme HandyPushStream -configuration Release clean build ARCHS='armv7 arm64' -sdk iphoneos10.0 CODE_SIGN_IDENTITY="iPhone Distribution: Leshi Co., Ltd" PROVISIONING_PROFILE=fabd97d8-2ea0-4398-b5cb-61c1c5a96e3e
+xcodebuild -workspace HandyPushStream.xcworkspace -scheme HandyPushStream -configuration Release clean build ARCHS='armv7 arm64' -sdk iphoneos10.2 CODE_SIGN_IDENTITY="iPhone Distribution: Leshi Co., Ltd" PROVISIONING_PROFILE=CommonEntpInHouseProvisionProfile
 
 xcrun -sdk iphoneos PackageApplication \
 `pwd`/DerivedData/HandyPushStream/build/Products/Release-iphoneos/HandyPushStream.app \
