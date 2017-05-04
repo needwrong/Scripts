@@ -17,6 +17,10 @@ buildDir="./PackageDir"
 libName="libStreamingSDK"
 outputDirName="lecloud_ios_mobile_live_push_SDK_${dateToday}_v${version}_stable"
 
+outputPath=~/Desktop/tmp
+buildPath=${outputPath}/xcodeBuild
+
+
 echo "******* create Build Directory ******"
 rm -rdf "${buildDir}"
 mkdir "${buildDir}"
@@ -41,17 +45,17 @@ echo "******* 切换到xcode8，SDK10.2环境下编译 ******"
 
 echo "*************************************"
 echo ">>>>>> 真机架构构建 "
-xcodebuild -scheme LeCloudStreaming -configuration Release clean build ARCHS='armv7 armv7s arm64' -sdk iphoneos10.2 GCC_PREPROCESSOR_DEFINITIONS="${NE_OPTION_MACRO}"
+xcodebuild -scheme LeCloudStreaming -configuration Release clean build ARCHS='armv7 armv7s arm64' -sdk iphoneos GCC_PREPROCESSOR_DEFINITIONS="${NE_OPTION_MACRO}" SYMROOT="${buildPath}"
 iphoneLibPath="${buildDir}/${libName}_armv7_${version}.a"
-cp ./DerivedData/LeCloudStreamingUI/Build/Products/Release-iphoneos/libLeCloudStreaming.a "${iphoneLibPath}"
+cp ${buildPath}/Release-iphoneos/libLeCloudStreaming.a "${iphoneLibPath}"
 echo "****LibDir=$iphoneLibPath ******"
 lipo -info "${iphoneLibPath}"
 
 echo "*************************************"
 echo ">>>>>> 模拟器架构构建 "
-xcodebuild -scheme LeCloudStreaming -configuration Release clean build ARCHS='x86_64 i386' -sdk iphonesimulator10.2 PLATFORM_NAME=iphonesimulator  GCC_PREPROCESSOR_DEFINITIONS="${NE_OPTION_MACRO}"
+xcodebuild -scheme LeCloudStreaming -configuration Release clean build ARCHS='x86_64 i386' -sdk iphonesimulator PLATFORM_NAME=iphonesimulator  GCC_PREPROCESSOR_DEFINITIONS="${NE_OPTION_MACRO}" SYMROOT="${buildPath}"
 simulatorLibPath="${buildDir}/${libName}_x86_64_${version}.a"
-cp ./DerivedData/LeCloudStreamingUI/Build/Products/Release-iphonesimulator/libLeCloudStreaming.a "${simulatorLibPath}"
+cp ${buildPath}/Release-iphonesimulator/libLeCloudStreaming.a "${simulatorLibPath}"
 echo "****LibDir=$simulatorLibPath ******"
 lipo -info "${simulatorLibPath}"
 
@@ -68,8 +72,8 @@ lipo -detailed_info "${allArchLibPath}"
         
 echo "*************************************"
 echo ">>>>>> LCStreamingBundle building"
-xcodebuild -scheme LCStreamingBundle -configuration Release -sdk iphoneos10.2
-bundlePath="./DerivedData/LeCloudStreamingUI/Build/Products/Release-iphoneos/LCStreamingBundle.bundle"
+xcodebuild -scheme LCStreamingBundle -configuration Release -sdk iphoneos SYMROOT="${buildPath}"
+bundlePath=${buildPath}"/Release-iphoneos/LCStreamingBundle.bundle"
 echo "****bundlePath=$bundlePath ******"
 
 
