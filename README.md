@@ -26,5 +26,8 @@
 最后你可能需要强制更新一下远程库，否则远程库的信息是不会变的：git push --force
 
 
+### linkmap.js
+###### 分析Xcode编译时生成的linkmap文件；在原版的基础上增加了输出各模块百分比的功能
+
 
 to be continued

@@ -4,6 +4,6 @@
 #并且可能需要使用Sudo执行
 
 RAMDISK=ramdisk
-SIZE=1024         #size in MB for ramdisk.
+SIZE=2048         #size in MB for ramdisk.
 diskutil erasevolume HFS+ $RAMDISK \
      `hdiutil attach -nomount ram://$[SIZE*2048]`
