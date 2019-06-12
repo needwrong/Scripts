@@ -93,7 +93,7 @@ else
 	puts "Unable to open file!"
 end
 
-if sendEmail
+if yes
 	encodedcontent = [newContents].pack("m")   # base64
 	marker = "AUNIQUEMARKER"
 	ContentID = 'chart_id'
