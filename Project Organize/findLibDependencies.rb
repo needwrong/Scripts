@@ -2,20 +2,46 @@
 
 #find dependencies among libs in #{sLibRootPath}
 
+t1 = Time.now
+puts "Start analysing at #{t1}\n\n"
+
 require 'find'
+require 'set'
+
+##################################### user configuration you should specified begin #####################################
 
 sDerivedDataRootPath = "#{ENV['HOME']}/Library/Developer/Xcode/DerivedData/TBClient-aakzhhsvrphhqnftlaqaxyidliwk"
 sBuildConfig = "Debug-iphoneos"
-sLibRootPath = "#{sDerivedDataRootPath}/Build/Products/#{sBuildConfig}"
 
 # two style of analysing: whether show obj and symbol detail; take long time to analyse detail
 bDetailed = false
 # whether recursively analyse libs under #{sLibRootPath}; may take long time to analyse recursively
 bRecursiveDir = false
 
+aSpecifiedLibs = []
+# if you only want to analyse a few specified libs, specify them in aSpecifiedLibs; or you should just comment it out
+# aSpecifiedLibs = Set["IDK", "IDKCore"]
+
+aIgnoredLibs = []
+# if you want to ignore some libs, specify them in aIgnoredLibs; or you should just comment it out
+aIgnoredLibs = Set["IDP"]
+
+##################################### user configuration you should specified end #####################################
+
+
+sLibRootPath = "#{sDerivedDataRootPath}/Build/Products/#{sBuildConfig}"
+
 puts "Finding dependencies among libs in #{sDerivedDataRootPath}/Build/Products/#{sBuildConfig}"
 puts "#{bDetailed ? "Detailed" : "Simplified"} style"
 puts "Search libs #{bRecursiveDir ? "recursively" : "only"} in specified dir\n\n"
+
+unless aSpecifiedLibs.empty?
+	puts "Specified libs: #{aSpecifiedLibs.to_a.join(',')} \n\n"
+end
+
+unless aIgnoredLibs.empty?
+	puts "Ignored libs: #{aIgnoredLibs.to_a.join(',')} \n\n"
+end
 
 # hash dic of "obj file name" => [undefined symbols array]
 hUndefinedS = {}
@@ -23,33 +49,69 @@ hUndefinedS = {}
 hDefinedS = {}
 aLibNames = []
 
-if bRecursiveDir
-	Dir.chdir(sLibRootPath)
-	Find.find(".") do |path|
-		if path == ?.
-			next
+Dir.chdir(sLibRootPath)
+Find.find(".") do |path|
+	if path == ?.
+		next
+	end
+
+	basename = File.basename(path)
+	ext = File.extname(path)
+
+	if FileTest.directory?(path)
+		unless bRecursiveDir
+		 	Find.prune
+		 	next
 		end
 
-		ext = File.extname(path)
-		if FileTest.directory?(path)
-			if File.basename(path)[0] == ?. || !ext.empty?
-		    	Find.prune       # Don't look any further into this directory.
-			end
-		elsif ext == ".a"
-			aLibNames << path.sub(/^\.\//, "")
+		# omit hidden or framework files etc.
+		if basename[0] == ?. || !ext.empty?
+	    	Find.prune       # Don't look any further into this directory.
 		end
+
+		# omit dirs in aIgnoredLibs
+		unless aIgnoredLibs.empty?
+			if aIgnoredLibs.include?(basename)
+				Find.prune
+				next
+			end
+		end
+
+		# omit dirs not in aSpecifiedLibs
+		unless aSpecifiedLibs.empty?
+			unless aSpecifiedLibs.include?(basename)
+				Find.prune
+			 	next
+			end
+		end
+
+	elsif ext == ".a"
+		strippedName = basename.sub(/^lib/,'').sub(/\.a$/,'')
+
+		# omit libs in aIgnoredLibs
+		unless aIgnoredLibs.empty?
+			if aIgnoredLibs.include?(strippedName)
+				next
+			end
+		end
+
+		# omit libs not in aSpecifiedLibs
+		unless aSpecifiedLibs.empty?
+			unless aSpecifiedLibs.include?(strippedName)
+			 	next
+			end
+		end
+
+		aLibNames << path.sub(/^\.\//, "")
 	end
-else
-	aLibNames = `ls #{sLibRootPath} | grep "\.a$"`.split(/\n/)
 end
 
-
 aLibNames.each do |sLibName|
-	puts "analysing lib: " + sLibName
+	puts "Analysing lib: " + sLibName
 
 	############### process of defined symbols ###############
 
-	sDefinedS = `nm -defined-only -just-symbol-name #{sLibRootPath}/#{sLibName}`.strip
+	sDefinedS = `nm -defined-only -just-symbol-name -extern-only #{sLibRootPath}/#{sLibName}`.strip
 	aTempDS = sDefinedS.split("\n/")
 
 	aTempDS.each do |t|
@@ -118,7 +180,7 @@ hUndefinedS.each do |ku, au|
 			else
 				# 2.3 只记录库名；数据结构与1完全不同
 				unless hDependencies[sLibNameU]
-					puts "finding symbols for #{sLibNameU}"
+					puts "Finding symbols for #{sLibNameU}"
 
 					hDependencies[sLibNameU] = []
 				end
@@ -133,7 +195,7 @@ hUndefinedS.each do |ku, au|
 			puts "\n\033[1;31m#{ku} depends on " + hDependencies.keys.join(",") + "\033[0m"
 
 			# more detailed output
-			puts "symbol dependency detail:"
+			puts "Symbol dependency detail:"
 			hDependencies.each do |k, a|
 				puts k + ":"
 				puts a.join(",")
@@ -157,4 +219,6 @@ unless bDetailed || hDependencies.empty?
 
 end
 
+t2 = Time.now
+puts "\n\nTotal time consumed: #{t2 - t1}"
 
