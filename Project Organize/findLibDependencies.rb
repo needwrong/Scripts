@@ -10,13 +10,18 @@ require 'set'
 
 ##################################### user configuration you should specified begin #####################################
 
-sDerivedDataRootPath = "#{ENV['HOME']}/Library/Developer/Xcode/DerivedData/TBClient-aakzhhsvrphhqnftlaqaxyidliwk"
-sBuildConfig = "Debug-iphoneos"
+# sDerivedDataRootPath = "#{ENV['HOME']}/Library/Developer/Xcode/DerivedData/TBClient-aakzhhsvrphhqnftlaqaxyidliwk"
+# sBuildConfig = "Debug-iphoneos"
+
+sDerivedDataRootPath = "#{ENV['HOME']}/Library/Developer/Xcode/DerivedData/BBAComposeDemo-egzjtzfyjlklckgvpxvqtmvfjpyv"
+sBuildConfig = "Debug-iphonesimulator"
 
 # two style of analysing: whether show obj and symbol detail; take long time to analyse detail
 bDetailed = false
 # whether recursively analyse libs under #{sLibRootPath}; may take long time to analyse recursively
-bRecursiveDir = false
+bRecursiveDir = true
+# whether process binary file in frameworks
+bProcessFramework = true
 
 aSpecifiedLibs = []
 # if you only want to analyse a few specified libs, specify them in aSpecifiedLibs; or you should just comment it out
@@ -64,8 +69,12 @@ Find.find(".") do |path|
 		 	next
 		end
 
-		# omit hidden or framework files etc.
-		if basename[0] == ?. || !ext.empty?
+		# TODO: identify dynamic or static framework
+		if bProcessFramework && ext == ".framework"
+			puts "Process framework: " + path
+			next
+		# omit hidden or other none framework files, or subdirs inside framework.
+		elsif basename[0] == ?. || !ext.empty? || path.match(/\.framework/)
 	    	Find.prune       # Don't look any further into this directory.
 		end
 
@@ -100,6 +109,13 @@ Find.find(".") do |path|
 			unless aSpecifiedLibs.include?(strippedName)
 			 	next
 			end
+		end
+
+		aLibNames << path.sub(/^\.\//, "")
+
+	elsif bProcessFramework && ext.empty?		#binary inside framewroks
+		unless path.match(/\.framework/)
+			next
 		end
 
 		aLibNames << path.sub(/^\.\//, "")
