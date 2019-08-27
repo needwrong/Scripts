@@ -7,14 +7,15 @@ puts "Start analysing at #{t1}\n\n"
 
 require 'find'
 require 'set'
+require 'json'
 
 ##################################### user configuration you should specified begin #####################################
 
-# sDerivedDataRootPath = "#{ENV['HOME']}/Library/Developer/Xcode/DerivedData/TBClient-aakzhhsvrphhqnftlaqaxyidliwk"
-# sBuildConfig = "Debug-iphoneos"
+sDerivedDataRootPath = "#{ENV['HOME']}/Library/Developer/Xcode/DerivedData/TBClient-hckenbkakhzdfechrkslltstgvbv"
+sBuildConfig = "Debug-iphoneos"
 
-sDerivedDataRootPath = "#{ENV['HOME']}/Library/Developer/Xcode/DerivedData/BBAComposeDemo-egzjtzfyjlklckgvpxvqtmvfjpyv"
-sBuildConfig = "Debug-iphonesimulator"
+# sDerivedDataRootPath = "#{ENV['HOME']}/Library/Developer/Xcode/DerivedData/BBAComposeDemo-egzjtzfyjlklckgvpxvqtmvfjpyv"
+# sBuildConfig = "Debug-iphonesimulator"
 
 # two style of analysing: whether show obj and symbol detail; take long time to analyse detail
 bDetailed = false
@@ -54,71 +55,72 @@ hUndefinedS = {}
 hDefinedS = {}
 aLibNames = []
 
-Dir.chdir(sLibRootPath)
-Find.find(".") do |path|
-	if path == ?.
-		next
-	end
-
-	basename = File.basename(path)
-	ext = File.extname(path)
-
-	if FileTest.directory?(path)
-		unless bRecursiveDir
-		 	Find.prune
-		 	next
-		end
-
-		# TODO: identify dynamic or static framework
-		if bProcessFramework && ext == ".framework"
-			puts "Process framework: " + path
-			next
-		# omit hidden or other none framework files, or subdirs inside framework.
-		elsif basename[0] == ?. || !ext.empty? || path.match(/\.framework/)
-	    	Find.prune       # Don't look any further into this directory.
-		end
-
-		# omit dirs in aIgnoredLibs
-		unless aIgnoredLibs.empty?
-			if aIgnoredLibs.include?(basename)
-				Find.prune
-				next
-			end
-		end
-
-		# omit dirs not in aSpecifiedLibs
-		unless aSpecifiedLibs.empty?
-			unless aSpecifiedLibs.include?(basename)
-				Find.prune
-			 	next
-			end
-		end
-
-	elsif ext == ".a"
-		strippedName = basename.sub(/^lib/,'').sub(/\.a$/,'')
-
-		# omit libs in aIgnoredLibs
-		unless aIgnoredLibs.empty?
-			if aIgnoredLibs.include?(strippedName)
-				next
-			end
-		end
-
-		# omit libs not in aSpecifiedLibs
-		unless aSpecifiedLibs.empty?
-			unless aSpecifiedLibs.include?(strippedName)
-			 	next
-			end
-		end
-
-		aLibNames << path.sub(/^\.\//, "")
-
-	elsif bProcessFramework && ext.empty?		#binary inside framewroks
-		unless path.match(/\.framework/)
+Dir.chdir(sLibRootPath) do
+	Find.find(".") do |path|
+		if path == ?.
 			next
 		end
 
-		aLibNames << path.sub(/^\.\//, "")
+		basename = File.basename(path)
+		ext = File.extname(path)
+
+		if FileTest.directory?(path)
+			unless bRecursiveDir
+			 	Find.prune
+			 	next
+			end
+
+			# TODO: identify dynamic or static framework
+			if bProcessFramework && ext == ".framework"
+				puts "Process framework: " + path
+				next
+			# omit hidden or other none framework files, or subdirs inside framework.
+			elsif basename[0] == ?. || !ext.empty? || path.match(/\.framework/)
+		    	Find.prune       # Don't look any further into this directory.
+			end
+
+			# omit dirs in aIgnoredLibs
+			unless aIgnoredLibs.empty?
+				if aIgnoredLibs.include?(basename)
+					Find.prune
+					next
+				end
+			end
+
+			# omit dirs not in aSpecifiedLibs
+			unless aSpecifiedLibs.empty?
+				unless aSpecifiedLibs.include?(basename)
+					Find.prune
+				 	next
+				end
+			end
+
+		elsif ext == ".a"
+			strippedName = basename.sub(/^lib/,'').sub(/\.a$/,'')
+
+			# omit libs in aIgnoredLibs
+			unless aIgnoredLibs.empty?
+				if aIgnoredLibs.include?(strippedName)
+					next
+				end
+			end
+
+			# omit libs not in aSpecifiedLibs
+			unless aSpecifiedLibs.empty?
+				unless aSpecifiedLibs.include?(strippedName)
+				 	next
+				end
+			end
+
+			aLibNames << path.sub(/^\.\//, "")
+
+		elsif bProcessFramework && ext.empty?		#binary inside framewroks
+			unless path.match(/\.framework/)
+				next
+			end
+
+			aLibNames << path.sub(/^\.\//, "")
+		end
 	end
 end
 
@@ -221,6 +223,7 @@ hUndefinedS.each do |ku, au|
 	end
 end
 
+chartData = []
 unless bDetailed || hDependencies.empty?
 	puts ""
 
@@ -228,6 +231,10 @@ unless bDetailed || hDependencies.empty?
 	hDependencies.each do |k, v|
 		unless v.empty?
 			puts "#{k} depends on " + v.uniq.join(",")
+
+			v.each do |vl|
+				chartData << [k, vl]
+			end
 		else
 			puts "#{k} depends nothing !"
 		end
@@ -238,3 +245,17 @@ end
 t2 = Time.now
 puts "\n\nTotal time consumed: #{t2 - t1}"
 
+
+fileName = "VisRelationsChart.html"
+contents = File.read(fileName)
+
+newContents = ''
+if contents
+	dataJson = JSON.generate(chartData)
+	# dataJson.gsub!(",\"data\"",',dataLabels:{enabled:true,formatter:function(){return this.y;}},"data"')
+	newDataText = "var chartData = " + dataJson + "\n";
+	newContents = contents.gsub(/var chartData = .*\n/, newDataText)
+
+	# 写文件
+	File.open(fileName, "w") {|file| file.puts newContents }
+end
