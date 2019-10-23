@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 
-#find dependencies among libs in #{sLibRootPath}
+# find dependencies among libs in #{sLibRootPath}
+# use arg 0 to specific the lib root path
 
 t1 = Time.now
 puts "Start analysing at #{t1}\n\n"
@@ -14,15 +15,20 @@ require 'json'
 sDerivedDataRootPath = "#{ENV['HOME']}/Library/Developer/Xcode/DerivedData/TBClient-hckenbkakhzdfechrkslltstgvbv"
 sBuildConfig = "Debug-iphoneos"
 
-# sDerivedDataRootPath = "#{ENV['HOME']}/Library/Developer/Xcode/DerivedData/BBAComposeDemo-egzjtzfyjlklckgvpxvqtmvfjpyv"
-# sBuildConfig = "Debug-iphonesimulator"
+# the final dir in which to find lib dependencies
+sLibRootPath = "#{sDerivedDataRootPath}/Build/Products/#{sBuildConfig}"
 
 # two style of analysing: whether show obj and symbol detail; take long time to analyse detail
-bDetailed = false
+bDetailed = true
+
 # whether recursively analyse libs under #{sLibRootPath}; may take long time to analyse recursively
 bRecursiveDir = true
+
 # whether process binary file in frameworks
 bProcessFramework = true
+
+# whether strip long file path of libs
+bStripFilePath = true
 
 aSpecifiedLibs = []
 # if you only want to analyse a few specified libs, specify them in aSpecifiedLibs; or you should just comment it out
@@ -30,14 +36,35 @@ aSpecifiedLibs = []
 
 aIgnoredLibs = []
 # if you want to ignore some libs, specify them in aIgnoredLibs; or you should just comment it out
-aIgnoredLibs = Set["IDP"]
+aIgnoredLibs = Set["IDP", "IDK", "IDKCore"]
+
+# beta function: directly process object files
+bProcessObject = true
 
 ##################################### user configuration you should specified end #####################################
 
 
-sLibRootPath = "#{sDerivedDataRootPath}/Build/Products/#{sBuildConfig}"
+##################################### take configuration from args begin #####################################
 
-puts "Finding dependencies among libs in #{sDerivedDataRootPath}/Build/Products/#{sBuildConfig}"
+class String
+	def to_b
+    	return true if self == "true" || self == "YES"
+    	return false if self == "false" || self == "NO"
+	end
+end
+
+iArgCount = ARGV.count
+
+bStripFilePath = ARGV[4].to_b if iArgCount > 4
+bProcessFramework = ARGV[3].to_b if iArgCount > 3
+bRecursiveDir = ARGV[2].to_b if iArgCount > 2
+bDetailed = ARGV[1].to_b if iArgCount > 1
+sLibRootPath = ARGV[0] if iArgCount > 0
+
+##################################### take configuration from args end #####################################
+
+
+puts "Finding dependencies among libs in #{sLibRootPath}"
 puts "#{bDetailed ? "Detailed" : "Simplified"} style"
 puts "Search libs #{bRecursiveDir ? "recursively" : "only"} in specified dir\n\n"
 
@@ -74,8 +101,8 @@ Dir.chdir(sLibRootPath) do
 			if bProcessFramework && ext == ".framework"
 				puts "Process framework: " + path
 				next
-			# omit hidden or other none framework files, or subdirs inside framework.
-			elsif basename[0] == ?. || !ext.empty? || path.match(/\.framework/)
+			# omit hidden, or subdirs inside framework, or some other dir except some special ones
+			elsif basename[0] == ?. || path.match(/\.framework/) || (!ext.empty? && ext != '.default' && !ext.match(/\.\d/) && ext != '.build')
 		    	Find.prune       # Don't look any further into this directory.
 			end
 
@@ -113,9 +140,11 @@ Dir.chdir(sLibRootPath) do
 			end
 
 			aLibNames << path.sub(/^\.\//, "")
+		elsif bProcessObject && ext == ".o"
 
-		elsif bProcessFramework && ext.empty?		#binary inside framewroks
-			unless path.match(/\.framework/)
+			aLibNames << path.sub(/^\.\//, "")
+		elsif bProcessFramework && ext.empty?		#binary inside framewroks, without f*cking .DS_Store file
+			unless path.match(/\.framework/) && !path.end_with?(".DS_Store")
 				next
 			end
 
@@ -124,33 +153,41 @@ Dir.chdir(sLibRootPath) do
 	end
 end
 
+# node info used for charts
+aNodes = []
+aEdges = []
+
 aLibNames.each do |sLibName|
+	sSimpleLibName = sLibName
+	sSimpleLibName = File.basename(sLibName) if bStripFilePath
 	puts "Analysing lib: " + sLibName
+
+	aNodes << {"id" => sSimpleLibName, "label" => sSimpleLibName, "value" => 1}
 
 	############### process of defined symbols ###############
 
-	sDefinedS = `nm -defined-only -just-symbol-name -extern-only #{sLibRootPath}/#{sLibName}`.strip
+	sDefinedS = `nm -defined-only -just-symbol-name #{sLibRootPath}/#{sLibName}`.strip
 	aTempDS = sDefinedS.split("\n/")
 
 	aTempDS.each do |t|
 		array = t.split("\n")
 		file = array.shift.match(/(?<=\().*(?=\))/).to_s
 
-		if bDetailed
+		if bDetailed && !bProcessObject
 			# 1.1 process by libname + objname
-			hDefinedS[sLibName + "(" + file + ")"] = array
+			hDefinedS[sSimpleLibName + "(" + file + ")"] = array
 		else
 			# 2.1 process by libname
-			unless hDefinedS[sLibName]
-				hDefinedS[sLibName] = []
+			unless hDefinedS[sSimpleLibName]
+				hDefinedS[sSimpleLibName] = []
 			end
-			hDefinedS[sLibName] |= array
+			hDefinedS[sSimpleLibName] |= array
 		end
 	end
 
 	############### process of undefined symbols ###############
 
-	sUndefinedS = `nm -undefined-only #{sLibRootPath}/#{sLibName}`.strip
+	sUndefinedS = `nm -undefined-only -j #{sLibRootPath}/#{sLibName}`.strip
 	aTempUS = sUndefinedS.split("\n/")
 
 	aTempUS.each do |t|
@@ -159,16 +196,17 @@ aLibNames.each do |sLibName|
 
 		# 减去模块内部的符号，undefined symbol array of moduleA
 
-		if bDetailed
+		if bDetailed && !bProcessObject
 			# 1.2 process by libname + objname
-			objName = sLibName + "(" + file + ")"
+			objName = sSimpleLibName + "(" + file + ")"
 			hUndefinedS[objName] = array - hDefinedS[objName]
 		else
 			# 2.2 process by libname
-			unless hUndefinedS[sLibName]
-				hUndefinedS[sLibName] = []
+			unless hUndefinedS[sSimpleLibName]
+				hUndefinedS[sSimpleLibName] = []
 			end
-			hUndefinedS[sLibName] |= array - hDefinedS[sLibName]
+
+			hUndefinedS[sSimpleLibName] |= array - hDefinedS[sSimpleLibName]
 		end
 	end
 
@@ -215,15 +253,21 @@ hUndefinedS.each do |ku, au|
 			# more detailed output
 			puts "Symbol dependency detail:"
 			hDependencies.each do |k, a|
-				puts k + ":"
-				puts a.join(",")
+				unless a.empty?
+					puts k + ":"
+					puts a.join(",")
+				end
+
+				aEdges << {"from" => ku, "to" => k}
+				node = aNodes.find {|x| x["id"] == k}
+				node["value"] += 1
 			end
 			hDependencies.clear
 		end
 	end
 end
 
-chartData = []
+# chartData = []
 unless bDetailed || hDependencies.empty?
 	puts ""
 
@@ -233,7 +277,11 @@ unless bDetailed || hDependencies.empty?
 			puts "#{k} depends on " + v.uniq.join(",")
 
 			v.each do |vl|
-				chartData << [k, vl]
+				# chartData << [k, vl]
+
+				aEdges << {"from" => k, "to" => vl}
+				node = aNodes.find {|x| x["id"] == vl}
+				node["value"] += 1
 			end
 		else
 			puts "#{k} depends nothing !"
@@ -246,16 +294,30 @@ t2 = Time.now
 puts "\n\nTotal time consumed: #{t2 - t1}"
 
 
-fileName = "VisRelationsChart.html"
-contents = File.read(fileName)
+sFileName = "VisRelationsChart.html"
+contents = File.read(sFileName)
+
+# hDependencies.each do |k, v|
+# 	unless v.empty?
+# 		v.each do |vl|
+# 			aEdges << {"from" => k, "to" => vl}
+# 			node = aNodes.find {|x| x["id"] == vl}
+# 			node["value"] += 1
+# 		end
+# 	end
+# end
 
 newContents = ''
 if contents
-	dataJson = JSON.generate(chartData)
-	# dataJson.gsub!(",\"data\"",',dataLabels:{enabled:true,formatter:function(){return this.y;}},"data"')
-	newDataText = "var chartData = " + dataJson + "\n";
-	newContents = contents.gsub(/var chartData = .*\n/, newDataText)
+	nodesJson = JSON.generate(aNodes)
+	edgesJson = JSON.generate(aEdges)
+
+	newDataText = "var nodes = " + nodesJson + "\n";
+	newContents = contents.gsub(/var nodes = .*\n/, newDataText)
+
+	newDataText = "var edges = " + edgesJson + "\n";
+	newContents = newContents.gsub(/var edges = .*\n/, newDataText)
 
 	# 写文件
-	File.open(fileName, "w") {|file| file.puts newContents }
+	File.open(sFileName, "w") {|file| file.puts newContents }
 end

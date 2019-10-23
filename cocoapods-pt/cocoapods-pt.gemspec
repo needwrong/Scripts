@@ -6,8 +6,8 @@ require 'cocoapods-pt/gem_version.rb'
 Gem::Specification.new do |spec|
   spec.name          = 'cocoapods-pt'
   spec.version       = CocoapodsPt::VERSION
-  spec.authors       = ['nidong']
-  spec.email         = ['nidong@baidu.com']
+  spec.authors       = ['East']
+  spec.email         = ['teddy_nee@163.com']
   spec.description   = %q{A short description of cocoapods-pt.}
   spec.summary       = %q{A longer description of cocoapods-pt.}
   spec.homepage      = 'https://github.com/EXAMPLE/cocoapods-pt'

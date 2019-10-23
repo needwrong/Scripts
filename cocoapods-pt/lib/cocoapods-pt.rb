@@ -1,100 +1,75 @@
 require 'cocoapods-pt/gem_version'
 require 'pry-nav'
+require 'singleton'
 
 module PT
 
-    def dynamicSpecAdapter(podspec)
-        # podspec.public_header_files = "**/*.h"
+    class PT_internal
+        include Singleton
+        attr_accessor :l_names_using_source, :l_names_using_binary
+        attr_accessor :l_versions_using_binary
+        attr_accessor :lib_path
+        attr_accessor :main_target_name
+
+        def initialize
+            @l_names_using_binary = []
+            @l_names_using_source = []
+            @l_versions_using_binary = {}
+        end
     end
+
+    class Config
+        def self.keyword
+            :tb_fast
+        end
+    end
+
+    EXCLUDE_SOURCE_PATTERN = "**/*{.m,.mm,.i,.c,.cc,.cxx,.cpp,.c++,.swift,.ipp,.tpp,.def,.inl,.inc}"
 end
 
 module Pod
     class Specification
         attr_accessor :ttt
-
-        # module DSL
-        #     extend Pod::Specification::DSL::AttributeSupport
-
-        #     # Deprecations must be required after include AttributeSupport
-        #     require 'cocoapods-core/specification/dsl/deprecations'
-
-        #     root_attribute :ttt
-        # end
-        # include Pod::Specification::DSL
-
-        # class Consumer
-        #     spec_attr_accessor :ttt
-        # end
-
     end
 end
-
-# module Pod
-#     class Spec
-#         attr_accessor :ttt
-#     end
-# end
-    
-# module Pod
-#     class Sandbox
-#         class FileAccessor
-#             def ttt
-#                 paths_for_attribute(:ttt)
-#             end
-#         end
-#     end
-# end
 
 module Pod
+
     class Installer
-        alias _pt_install! install!
-        alias _pt_analyze analyze
+        alias _pt_resolve_dependencies resolve_dependencies
+
+        include PT
+
+        # modify spec before generating projects
+        def resolve_dependencies
+            _pt_resolve_dependencies
+
+            puts "plugin hook after resolve_dependencies"
+
+            pt_internal = PT_internal.instance
 
 
-        def install!
-            puts "plugin hook before install"
+            specifications = analysis_result.specifications
+            specs_to_modify = specifications.select do |s|
+                pt_internal.l_names_using_binary.index(s.name)
+            end
 
-            _pt_install!
+            specs_to_modify.map do |s|
+                # :exclude_files has no getter
+                exclude_files = [s.attributes_hash["exclude_files"]]
+
+                s.exclude_files = [exclude_files, PT::EXCLUDE_SOURCE_PATTERN].flatten
+
+                s.subspecs.each do |subs|
+                    exclude_files = [subs.attributes_hash["exclude_files"]]
+                    subs.exclude_files = [exclude_files, PT::EXCLUDE_SOURCE_PATTERN].flatten
+                end
+
+            end
         end
-
-        def analyze(analyzer = create_analyzer)
-            _pt_analyze
-            puts "plugin hook after analyzer"
-
-            # @analysis_result.specifications[0].to_hash
-        end
+       
     end
 end
-
-# 解析podspec栈
-# "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-core-1.7.5/lib/cocoapods-core/specification.rb:787:in `_eval_podspec'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-core-1.7.5/lib/cocoapods-core/specification.rb:695:in `block in from_string'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-core-1.7.5/lib/cocoapods-core/specification.rb:692:in `chdir'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-core-1.7.5/lib/cocoapods-core/specification.rb:692:in `from_string'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-core-1.7.5/lib/cocoapods-core/specification.rb:675:in `from_file'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-1.7.5/lib/cocoapods/external_sources/abstract_external_source.rb:164:in `store_podspec'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-1.7.5/lib/cocoapods/external_sources/path_source.rb:17:in `block in fetch'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-1.7.5/lib/cocoapods/user_interface.rb:86:in `titled_section'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-1.7.5/lib/cocoapods/external_sources/path_source.rb:11:in `fetch'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-1.7.5/lib/cocoapods/installer/analyzer.rb:854:in `fetch_external_source'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-1.7.5/lib/cocoapods/installer/analyzer.rb:833:in `block (2 levels) in fetch_external_sources'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-1.7.5/lib/cocoapods/installer/analyzer.rb:832:in `each'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-1.7.5/lib/cocoapods/installer/analyzer.rb:832:in `block in fetch_external_sources'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-1.7.5/lib/cocoapods/user_interface.rb:64:in `section'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-1.7.5/lib/cocoapods/installer/analyzer.rb:831:in `fetch_external_sources'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-1.7.5/lib/cocoapods/installer/analyzer.rb:111:in `analyze'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-1.7.5/lib/cocoapods/installer.rb:398:in `analyze'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-pt-0.0.1/lib/cocoapods-pt.rb:52:in `analyze'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-1.7.5/lib/cocoapods/installer.rb:221:in `block in resolve_dependencies'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-1.7.5/lib/cocoapods/user_interface.rb:64:in `section'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-1.7.5/lib/cocoapods/installer.rb:220:in `resolve_dependencies'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-1.7.5/lib/cocoapods/installer.rb:156:in `install!'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-pt-0.0.1/lib/cocoapods-pt.rb:48:in `install!'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-1.7.5/lib/cocoapods/command/install.rb:51:in `run'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/claide-1.0.3/lib/claide/command.rb:334:in `run'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-1.7.5/lib/cocoapods/command.rb:52:in `run'",
-#  "/Users/nidong/.rvm/gems/ruby-2.6.3/gems/cocoapods-1.7.5/bin/pod:55:in `<top (required)>'",
-#
 
 module Pod
     module ExternalSources
@@ -104,9 +79,43 @@ module Pod
             alias _pt_validate_podspec validate_podspec
 
             def validate_podspec(podspec)
-                puts "dynamic adapt " + podspec.name
 
-                dynamicSpecAdapter podspec
+                pt_internal = PT_internal.instance
+                if pt_internal.l_names_using_binary.include?(podspec.name)
+                    lib_version = podspec.version.version
+                    lib_path = "#{ENV["PWD"]}/#{pt_internal.lib_path}/#{podspec.name}/#{lib_version}/lib#{podspec.name}.a"
+
+                    if File.exist?(lib_path)
+                        pt_internal.l_versions_using_binary.merge!({podspec.name => lib_version})
+                        podspec.script_phase = nil
+
+                        UI.info("binary path for #{podspec.name}: #{lib_path}".green)
+                    else
+                        UI.info("lib config for #{podspec.name} error, #{lib_path} not exists, use source instead".red)
+                        pt_internal.l_names_using_binary.delete(podspec.name)
+                    end
+                    
+                end
+
+                # pt_internal.l_names_using_binary = [] unless pt_internal.l_names_using_binary
+                # pt_internal.l_names_using_binary << podspec.name if podspec.ttt
+
+                # binding.pry
+                # values = podspec.to_hash
+                # pod_target_xcconfig = values["pod_target_xcconfig"]
+                # pod_target_xcconfig = (values["pod_target_xcconfig"] = {}) unless pod_target_xcconfig
+
+                # library_search_paths = pod_target_xcconfig["LIBRARY_SEARCH_PATHS"]
+                # library_search_paths = (pod_target_xcconfig["LIBRARY_SEARCH_PATHS"] = "") unless library_search_paths
+
+                # library_search_paths = library_search_paths + " $(SRCROOT)/../../tb-binary/GPUImage/0.0.1.0"
+                # pod_target_xcconfig["LIBRARY_SEARCH_PATHS"] = library_search_paths
+                # pod_target_xcconfig["OTHER_LDFLAGS"] = '-lGPUImage'
+
+                # podspec.pod_target_xcconfig = pod_target_xcconfig
+                # podspec.source_files  = "src/*.{h}"
+
+                # podspec.public_header_files = "**/*.h"
 
                 _pt_validate_podspec podspec
             end
@@ -114,5 +123,93 @@ module Pod
     end
 end
 
+module Pod
+    class Podfile
+        module DSL
+            include PT
+
+            def libConfig(options = {})
+                pt_internal = PT_internal.instance
+                pt_internal.lib_path = options[:path]
+
+                UI.puts("binary library path: #{ENV["PWD"]}/#{pt_internal.lib_path}".cyan)
+                unless pt_internal.lib_path && File.exist?("#{ENV["PWD"]}/#{pt_internal.lib_path}")
+                    raise Informative, "invalid binary lib path provided"
+                end
+
+                pt_internal.main_target_name = options[:main_target]
+                b_main_target_valid = false
+                
+                # use method in Podfile class to access current_target_definition
+                current_target_definition.children.each do |target|
+                    if target.name == pt_internal.main_target_name
+                        b_main_target_valid = true;
+                    end
+
+                    target.dependencies.each do |dep|
+                        # dep.to_s: "protobuf (from `lib/protobuf`)"
+                        if dep.external_source && dep.external_source.delete(PT::Config.keyword)
+                            pt_internal.l_names_using_binary << dep.name
+                        end
+                    end
+                    # pt_get_hash_value('dependencies')
+                end 
+
+                unless b_main_target_valid
+                    raise Informative, "invalid main_target #{pt_internal.main_target_name}."
+                end
+
+                UI.puts("libs using binary: #{pt_internal.l_names_using_binary}".cyan);
+            end
+
+
+#             old_pod_method = instance_method(:pod)
+
+#             define_method(:pod) do |name, *args|
+#                 pt_internal = PT_internal.instance
+
+# binding.pry
+
+#                 if !pt_internal.main_target_name
+#                     old_pod_method.bind(self).(name, *args)
+#                     return
+#                 end
+                
+#                 local = false
+#                 should_prebuild = true
+
+#                 options = args.last
+#                 if options.is_a?(Hash) and options[PT::Config.keyword] != nil
+#                     should_prebuild = options[PT::Config.keyword]
+#                     local = (options[:path] != nil)
+#                 end
+                
+#                 if should_prebuild and (not local)
+
+#                     if current_target_definition.platform == :watchos
+#                         Pod::UI.warn "Binary doesn't support watchos currently: #{name}."
+#                         return
+#                     end
+
+#                     options.remove(PT::Config.keyword)
+#                     pt_internal.l_names_using_binary << dep.name
+#                     UI.puts("remote libs using binary: #{dep.name}".cyan);
+
+#                     old_pod_method.bind(self).(name, *args)
+#                 end
+#             end
+        end
+    end
+end
+
+module Pod
+    class Podfile
+        class TargetDefinition
+            def pt_get_hash_value(key)
+                get_hash_value(key)
+            end
+        end
+    end
+end
 
 
