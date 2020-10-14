@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 
-# find dependencies among libs in #{sLibRootPath}
+# Finding symbol dependencies among libs in #{sLibRootPath}
 # use arg 0 to specific the lib root path
 
 t1 = Time.now
@@ -19,7 +19,7 @@ sBuildConfig = "Debug-iphoneos"
 sLibRootPath = "#{sDerivedDataRootPath}/Build/Products/#{sBuildConfig}"
 
 # two style of analysing: whether show obj and symbol detail; take long time to analyse detail
-bDetailed = true
+bDetailed = false
 
 # whether recursively analyse libs under #{sLibRootPath}; may take long time to analyse recursively
 bRecursiveDir = true
@@ -36,7 +36,7 @@ aSpecifiedLibs = []
 
 aIgnoredLibs = []
 # if you want to ignore some libs, specify them in aIgnoredLibs; or you should just comment it out
-aIgnoredLibs = Set["IDP", "IDK", "IDKCore"]
+aIgnoredLibs = Set["IDP"]
 
 # beta function: directly process object files
 bProcessObject = true
